@@ -16,3 +16,5 @@ while(step < totalSteps)
 }
 
 rank 0 saves the matrix in out.txt
+
+!!! problema, MPI_Bcast ocupa de 10 ori mai mult timp la mai multe procese
