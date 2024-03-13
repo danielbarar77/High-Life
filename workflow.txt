@@ -1,0 +1,18 @@
+rank0 reads the matrix
+
+every rank calculates how many lines to do and the index
+
+while(step < totalSteps)
+{
+    rank 0 sends the matrix to all ranks
+
+    alloc memeory for a temp_matrix[rank_lines][columns]
+
+    every rank calculates for his line
+    and saves it in temp_matrix
+
+    every rank sends back to rank 0
+    free memeory
+}
+
+rank 0 saves the matrix in out.txt
