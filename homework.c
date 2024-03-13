@@ -50,6 +50,27 @@ void allocMatrix(int ***matrix, int l, int c)
     }
 }
 
+void findLinesAndIndexes(int **linesPerProcess, int **indexes, int nProcesses, int lines)
+{
+    for (int i = 0; i < nProcesses; i++)
+    {
+        (*linesPerProcess)[i] = lines / nProcesses;
+        if (i < (lines % nProcesses))
+        {
+            (*linesPerProcess)[i]++;
+        }
+
+        if (i == 0)
+        {
+            (*indexes)[i] = 0;
+        }
+        else
+        {
+            (*indexes)[i] = (*indexes)[i - 1] + (*linesPerProcess)[i - 1];
+        }
+    }
+}
+
 int readMatrix(int ***matrix, char *inFile, int *lines, int *columns)
 {
     FILE *fin = fopen(inFile, "r");
@@ -94,7 +115,7 @@ int main(int argc, char **argv)
     getArgs(argc, argv, &inFile, &outFile, &totalSteps);
     int **matrix;
     int lines, columns;
-
+    MPI_Status status;
     if (rank == 0)
     {
         if (readMatrix(&matrix, inFile, &lines, &columns) == -1)
@@ -114,10 +135,49 @@ int main(int argc, char **argv)
         //     }
         //     printf("\n");
         // }
+
+        MPI_Request request;
+        int *linesPerProcess = (int *)calloc(nProcesses, sizeof(int));
+        int *indexes = (int *)calloc(nProcesses, sizeof(int));
+
+        findLinesAndIndexes(&linesPerProcess, &indexes, nProcesses, lines);
+
+        for (int i = 0; i < nProcesses; i++)
+        {
+            MPI_Isend(&(linesPerProcess[i]), 1, MPI_INT, i, 0, MPI_COMM_WORLD, &request);
+            MPI_Isend(&(indexes[i]), 1, MPI_INT, i, 1, MPI_COMM_WORLD, &request);
+        }
     }
     MPI_Bcast(&lines, 1, MPI_INT, 0, MPI_COMM_WORLD);
     MPI_Bcast(&columns, 1, MPI_INT, 0, MPI_COMM_WORLD);
-    //printf("rank:%d  l:%d  c:%d\n", rank, lines, columns);
+    if (rank != 0)
+    {
+        allocMatrix(&matrix, lines, columns);
+    }
+    MPI_Bcast(*matrix, lines * columns, MPI_INT, 0, MPI_COMM_WORLD);
+    // printf("rank:%d  l:%d  c:%d\n", rank, lines, columns);
+    int myLines;
+    int myIndex;
+    int **auxMatrix;
+    MPI_Recv(&myLines, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, &status);
+    MPI_Recv(&myIndex, 1, MPI_INT, 0, 1, MPI_COMM_WORLD, &status);
+    printf("rank:%d  mtLines:%d  myIndex:%d\n", rank, myLines, myIndex);
+
+    allocMatrix(&auxMatrix, myLines, columns);
+
+    for (int i = 0; i < myLines; i++)
+    {
+        printf("rank%d: ", rank);
+        for (int j = 0; j < columns; j++)
+        {
+            auxMatrix[i][j] = matrix[myIndex + i][j];
+            printf("%d ", auxMatrix[i][j]);
+        }
+        printf("\n");
+    }
+
+    int *sendCount = (int *)calloc(nProcesses, sizeof(int));
+    int *displs = (int *)calloc(nProcesses, sizeof(int));
 
     MPI_Finalize();
     return 0;
