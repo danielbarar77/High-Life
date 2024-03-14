@@ -76,20 +76,20 @@ void getInfo(int **linesPerProcess, int **indexes, int **sendCount, int **displs
     }
 }
 
-int readMatrix(int ***matrix, char *inFile, int *lines, int *columns)
+int readFile(int ***matrix, char *inFile, int *lines, int *columns)
 {
     FILE *fin = fopen(inFile, "r");
     if (!fin)
     {
         return -1;
     }
-    if (fscanf(fin, "%d", lines) != 1)
+    if (fscanf(fin, "%d", lines) < 0)
     {
-        printf("Ops! Something went wrong!\n");
+        printf("Ops! Something went wrong 1!\n");
     }
-    if (fscanf(fin, "%d", columns) != 1)
+    if (fscanf(fin, "%d", columns) < 0)
     {
-        printf("Ops! Something went wrong!\n");
+        printf("Ops! Something went wrong 2!\n");
     }
     allocMatrix(matrix, *lines, *columns);
 
@@ -105,6 +105,39 @@ int readMatrix(int ***matrix, char *inFile, int *lines, int *columns)
     }
 
     fclose(fin);
+    return 0;
+}
+
+int writeFile(int ***matrix, char *outFile, int *lines, int *columns)
+{
+    FILE *fout = fopen(outFile, "w");
+    if (!fout)
+    {
+        return -1;
+    }
+    if (fprintf(fout, "%d ", *lines) < 0)
+    {
+        printf("Ops! Something went wrong1!\n");
+    }
+    if (fprintf(fout, "%d", *columns) < 0)
+    {
+        printf("Ops! Something went wrong2!\n");
+    }
+    fprintf(fout, "\n");
+
+    for (int i = 0; i < (*lines); i++)
+    {
+        for (int j = 0; j < (*columns); j++)
+        {
+            if (fprintf(fout, "%d ", (*matrix)[i][j]) != 2)
+            {
+                printf("Ops! Something went wrong!\n");
+            }
+        }
+        fprintf(fout, " \n");
+    }
+
+    fclose(fout);
     return 0;
 }
 
@@ -124,11 +157,11 @@ int main(int argc, char **argv)
     int *displs = (int *)calloc(nProcesses, sizeof(int));
     MPI_Status status;
 
-    clock_t start, end;
-    double cpu_time_used;
+    // clock_t start, end;
+    // double cpu_time_used;
     if (rank == 0)
     {
-        if (readMatrix(&matrix, inFile, &lines, &columns) == -1)
+        if (readFile(&matrix, inFile, &lines, &columns) == -1)
         {
             printf("Error on opening input file!\n");
             // MPI_Abort(MPI_COMM_WORLD);
@@ -160,6 +193,22 @@ int main(int argc, char **argv)
             MPI_Isend(sendCount, nProcesses, MPI_INT, i, 3, MPI_COMM_WORLD, &request);
             MPI_Isend(displs, nProcesses, MPI_INT, i, 4, MPI_COMM_WORLD, &request);
         }
+    }
+    if (rank == 0)
+    {
+        // for (int i = 0; i < lines; i++)
+        // {
+        //     for (int j = 0; j < columns; j++)
+        //     {
+        //         printf("%d ", matrix[i][j]);
+        //     }
+        //     printf("\n");
+        // }
+        // for (int i = 0; i < 2 * columns; i++)
+        // {
+        //     printf("-");
+        // }
+        // printf("\n");
     }
     MPI_Bcast(&lines, 1, MPI_INT, 0, MPI_COMM_WORLD);
     MPI_Bcast(&columns, 1, MPI_INT, 0, MPI_COMM_WORLD);
@@ -193,36 +242,70 @@ int main(int argc, char **argv)
 
     // this happens in a while loop
     int step = 0;
+    int count;
+    int i, j, l, c, ni, nj;
     while (step < totalSteps)
     {
-        start = clock();
+        // start = clock();
         MPI_Bcast(*matrix, lines * columns, MPI_INT, 0, MPI_COMM_WORLD);
-        end = clock();
-        cpu_time_used = ((double)(end - start)) / CLOCKS_PER_SEC;
-        printf("rank:%d step:%d time to bcast: %f\n", rank, step, cpu_time_used);
+        // end = clock();
+        // cpu_time_used = ((double)(end - start)) / CLOCKS_PER_SEC;
+        // printf("rank:%d step:%d time to bcast: %f\n", rank, step, cpu_time_used);
 
-        start = clock();
-        printf("rank:%d has %d lines\n", rank, myLines);
-        for (int i = 0; i < myLines; i++)
+        // start = clock();
+        // printf("rank:%d has %d lines\n", rank, myLines);
+        for (i = 0; i < myLines; i++)
         {
-            // printf("rank%d: ", rank);
-            for (int j = 0; j < columns; j++)
+            for (j = 0; j < columns; j++)
             {
-                auxMatrix[i][j] = matrix[myIndex + i][j] + 1;
+                count = 0;
+
+                for (l = -1; l <= 1; l++) // lines
+                {
+                    for (c = -1; c <= 1; c++) // columns
+                    {
+                        if (l == 0 && c == 0)
+                            continue; // skip current cell
+
+                        ni = myIndex + i + l;
+                        nj = j + c;
+
+                        if (ni >= 0 && ni < lines && nj >= 0 && nj < columns)
+                        {
+                            if (matrix[ni][nj] == 1)
+                            {
+                                count++;
+                            }
+                        }
+                    }
+                }
+
+                if (((count == 3) || (count == 6)) && (matrix[myIndex + i][j] == 0))
+                {
+                    auxMatrix[i][j] = 1;
+                }
+                else if (((count == 2) || (count == 3)) && (matrix[myIndex + i][j] == 1))
+                {
+                    auxMatrix[i][j] = 1;
+                }
+                else
+                {
+                    auxMatrix[i][j] = 0;
+                }
+
                 // printf("%d ", auxMatrix[i][j]);
             }
             // printf("\n");
         }
-        end = clock();
-        cpu_time_used = ((double)(end - start)) / CLOCKS_PER_SEC;
-        printf("rank:%d step:%d time to increase: %f\n", rank, step, cpu_time_used);
+        // end = clock();
+        // cpu_time_used = ((double)(end - start)) / CLOCKS_PER_SEC;
+        // printf("rank:%d step:%d time to increase: %f\n", rank, step, cpu_time_used);
 
-        // printf("rank:%d  fSC:%d  fD:%d\n", rank, flagSendCount, flagDispls);
-        start = clock();
+        // start = clock();
         MPI_Gatherv(*auxMatrix, sendCount[rank], MPI_INT, *matrix, sendCount, displs, MPI_INT, 0, MPI_COMM_WORLD);
-        end = clock();
-        cpu_time_used = ((double)(end - start)) / CLOCKS_PER_SEC;
-        printf("rank:%d step:%d time to gather: %f\n", rank, step, cpu_time_used);
+        // end = clock();
+        // cpu_time_used = ((double)(end - start)) / CLOCKS_PER_SEC;
+        // printf("rank:%d step:%d time to gather: %f\n", rank, step, cpu_time_used);
 
         step++;
     }
@@ -236,7 +319,7 @@ int main(int argc, char **argv)
         //     }
         //     printf("\n");
         // }
-        printf("%d\n", matrix[0][0]);
+        writeFile(&matrix, outFile, &lines, &columns);
     }
 
     MPI_Finalize();

@@ -2,11 +2,11 @@ rank0 reads the matrix
 
 every rank calculates how many lines to do and the index
 
+alloc memeory for a temp_matrix[rank_lines][columns]
 while(step < totalSteps)
 {
-    rank 0 sends the matrix to all ranks
+    rank 0 sends the matrix to all ranks  MPI_Bcast()
 
-    alloc memeory for a temp_matrix[rank_lines][columns]
 
     every rank calculates for his line
     and saves it in temp_matrix
