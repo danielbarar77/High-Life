@@ -1,4 +1,4 @@
-all: homework
+all: high_life
 
-homework: homework.c
-	mpicc homework.c -o homework -Wall -O3 -g3
+high_life: high_life.c
+	mpicc high_life.c -o high_life -Wall -O3 -g3
